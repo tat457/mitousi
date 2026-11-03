@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>見通しメーカー - 絵カード・予定表かんたん作成</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Friendly Japanese Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti for rewards -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Zen Maru Gothic"', '"M PLUS Rounded 1c"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            red: '#FF4B4B',
+                            yellow: '#FFB800',
+                            blue: '#1E88E5',
+                            green: '#4CAF50',
+                            orange: '#FF9800',
+                            purple: '#8E24AA',
+                            bg: '#FFFDF0',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', sans-serif;
+            background-color: #FFFDF5;
+            background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Card bounce effect */
+        .card-btn {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .card-btn:hover {
+            transform: translateY(-4px) scale(1.02);
+        }
+        .card-btn:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        /* Print Media Styles */
+        @media print {
+            body {
+                background: white !important;
+                background-image: none !important;
+                font-size: 12pt;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-container {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+        }
+        .print-only {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="no-print bg-white/90 backdrop-blur border-b-4 border-amber-300 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- App Logo & Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 bg-gradient-to-tr from-amber-400 to-orange-400 rounded-2xl flex items-center justify-center text-white shadow-md transform -rotate-3">
+                    <i data-lucide="sparkles" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-2xl font-black text-slate-800 tracking-tight">見通しメーカー</h1>
+                    </div>
+                    <p class="text-xs font-bold text-slate-500">学校でも家庭でも使える 絵カード・予定表作成アプリ</p>
+                </div>
+            </div>
+
+            <!-- Global Display Controls -->
+            <div class="flex items-center flex-wrap gap-2 sm:gap-3">
+                <!-- Text Script Switcher (Hiragana vs Kanji) -->
+                <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+                    <span class="text-xs font-bold text-slate-500 px-2 flex items-center gap-1">
+                        <i data-lucide="type" class="w-3.5 h-3.5"></i> 表記:
+                    </span>
+                    <button id="btn-script-hira" onclick="setScriptMode('hira')" class="px-3 py-1 text-xs font-bold rounded-lg transition-all bg-sky-500 text-white shadow-sm">
+                        ひらがな
+                    </button>
+                    <button id="btn-script-kanji" onclick="setScriptMode('kanji')" class="px-3 py-1 text-xs font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900">
+                        漢字
+                    </button>
+                </div>
+
+                <!-- Kids Interactive Mode -->
+                <button onclick="toggleKidsMode()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all">
+                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                    きっずモード
+                </button>
+
+                <!-- Print Options -->
+                <div class="relative group">
+                    <button class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        いんさつ
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <div class="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1 hidden group-hover:block z-50">
+                        <button onclick="printSchedule()" class="w-full text-left px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-amber-50 flex items-center gap-2">
+                            <i data-lucide="calendar" class="w-4 h-4 text-amber-500"></i>
+                            予定表として印刷
+                        </button>
+                        <button onclick="printCardsGrid()" class="w-full text-left px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-amber-50 flex items-center gap-2">
+                            <i data-lucide="grid" class="w-4 h-4 text-amber-500"></i>
+                            絵カード一覧を印刷
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
+        
+        <!-- Left Panel: Picture Card Catalog & Picker -->
+        <section class="lg:col-span-5 flex flex-col gap-4 bg-white p-4 sm:p-5 rounded-3xl border-2 border-slate-200/80 shadow-md">
+            
+            <!-- Category & Search Header -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <i data-lucide="layout-grid" class="w-5 h-5 text-sky-500"></i>
+                        <span class="txt-card-catalog-title">絵カードを選ぶ</span>
+                    </h2>
+                    <span id="preset-count-badge" class="text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-100">
+                        100種類以上
+                    </span>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative mb-3">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="card-search" oninput="filterCards()" placeholder="カードを検索 (例: さんすう, おふろ)" class="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 font-bold text-slate-700">
+                </div>
+
+                <!-- Category Tabs -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-xs font-bold">
+                    <button onclick="setCategory('all')" class="cat-tab bg-sky-500 text-white px-3 py-1.5 rounded-lg whitespace-nowrap shadow-sm" data-cat="all">すべて</button>
+                    <button onclick="setCategory('school')" class="cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" data-cat="school">🏫 学校</button>
+                    <button onclick="setCategory('home')" class="cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" data-cat="home">🏠 家庭</button>
+                    <button onclick="setCategory('hygiene')" class="cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" data-cat="hygiene">🧼 生活</button>
+                    <button onclick="setCategory('play')" class="cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" data-cat="play">⚽ 遊び</button>
+                    <button onclick="setCategory('special')" class="cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap" data-cat="special">⭐ 特別</button>
+                </div>
+            </div>
+
+            <!-- Picture Cards Grid Container -->
+            <div id="cards-grid" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5 overflow-y-auto max-h-[520px] p-1 border-t border-slate-100 pt-3">
+                <!-- Cards will be populated dynamically -->
+            </div>
+
+            <!-- Custom Card Creator Launcher -->
+            <button onclick="openCustomCardModal()" class="mt-auto w-full py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                オリジナルの絵カードをつくる
+            </button>
+        </section>
+
+        <!-- Right Panel: Schedule Builder -->
+        <section class="lg:col-span-7 flex flex-col gap-4 bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200/80 shadow-md">
+            
+            <!-- Schedule Header / Controls -->
+            <div class="border-b border-slate-100 pb-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                        <i data-lucide="calendar-check-2" class="w-6 h-6 text-amber-500"></i>
+                        <input type="text" id="schedule-title-input" value="きょうの よてい" class="text-xl sm:text-2xl font-black text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-slate-50 border border-transparent focus:border-amber-300 rounded-lg px-2 py-0.5 focus:outline-none transition-all w-full">
+                    </div>
+
+                    <!-- Preset Quick Loaders Dropdown -->
+                    <div class="flex items-center gap-2">
+                        <select id="preset-loader" onchange="loadPresetSchedule(this.value)" class="text-xs font-bold bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 focus:outline-none cursor-pointer hover:bg-amber-100 transition-all">
+                            <option value="">✨ プリセットから選ぶ...</option>
+                            <option value="school-day">🏫 小学校の1日 (授業・給食・清掃)</option>
+                            <option value="home-morning">🌅 かていの朝ルティーン (着替え・朝食)</option>
+                            <option value="home-evening">🌙 かていの夜ルティーン (風呂・宿題)</option>
+                            <option value="after-school">🎨 放課後デイ・お休みの日</option>
+                        </select>
+                        
+                        <button onclick="clearSchedule()" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="すべて消去">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub details bar (Date & Item Count) -->
+                <div class="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span id="today-date-text">2026年11月3日 (火)</span>
+                    </div>
+                    <span id="schedule-count-text" class="bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">0件の予定</span>
+                </div>
+            </div>
+
+            <!-- Schedule Items Container -->
+            <div id="schedule-items-list" class="flex-1 overflow-y-auto max-h-[540px] space-y-3 pr-1">
+                <!-- Schedule items will be rendered here -->
+            </div>
+
+            <!-- Bottom Quick Add Button -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                <button onclick="addBlankScheduleItem()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-all">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    自由な項目を追加
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="saveScheduleToLocal()" class="py-2.5 px-3 bg-sky-50 text-sky-700 hover:bg-sky-100 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        保存
+                    </button>
+                    <button onclick="loadScheduleFromLocal()" class="py-2.5 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        復元
+                    </button>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Custom Card Modal -->
+    <div id="custom-card-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
+                <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <i data-lucide="palette" class="w-5 h-5 text-pink-500"></i>
+                    オリジナルの絵カードを作成
+                </h3>
+                <button onclick="closeCustomCardModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs sm:text-sm font-bold">
+                <div>
+                    <label class="block text-slate-600 mb-1">ひらがな表記</label>
+                    <input type="text" id="custom-card-hira" placeholder="例: おりがみ" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-pink-400 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-slate-600 mb-1">漢字表記</label>
+                    <input type="text" id="custom-card-kanji" placeholder="例: 折り紙" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-pink-400 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-slate-600 mb-1">絵文字・アイコン (1つ選ぶか入力)</label>
+                    <input type="text" id="custom-card-emoji" value="🎨" class="w-full px-3 py-2 border rounded-xl text-xl text-center focus:ring-2 focus:ring-pink-400 focus:outline-none">
+                    <div class="flex gap-2 mt-2 justify-center text-xl cursor-pointer">
+                        <span onclick="setCustomEmoji('🎨')">🎨</span>
+                        <span onclick="setCustomEmoji('⚽')">⚽</span>
+                        <span onclick="setCustomEmoji('📖')">📖</span>
+                        <span onclick="setCustomEmoji('🚌')">🚌</span>
+                        <span onclick="setCustomEmoji('🍱')">🍱</span>
+                        <span onclick="setCustomEmoji('🐱')">🐱</span>
+                        <span onclick="setCustomEmoji('⭐')">⭐</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-600 mb-1">カードの色</label>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="custom-card-color" value="#E0F2FE" class="w-10 h-10 rounded-xl cursor-pointer border-0">
+                        <span class="text-xs text-slate-500 font-normal">枠・背景のメインカラー</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 flex gap-2">
+                <button onclick="closeCustomCardModal()" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs sm:text-sm">キャンセル</button>
+                <button onclick="saveCustomCard()" class="w-1/2 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md">作成して追加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Kids Interactive Check Mode -->
+    <div id="kids-mode-overlay" class="fixed inset-0 bg-amber-50/95 backdrop-blur-md z-50 flex flex-col p-4 sm:p-8 hidden no-print overflow-y-auto">
+        <!-- Top Bar -->
+        <div class="flex items-center justify-between max-w-4xl mx-auto w-full mb-6">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">🌟</span>
+                <h2 id="kids-mode-title" class="text-2xl sm:text-3xl font-black text-amber-900">きょうの よてい</h2>
+            </div>
+            <button onclick="toggleKidsMode()" class="bg-white border-2 border-amber-300 text-amber-800 hover:bg-amber-100 font-black px-4 py-2 rounded-2xl shadow-md text-sm flex items-center gap-2">
+                <i data-lucide="x" class="w-5 h-5"></i>
+                おわる
+            </button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="max-w-4xl mx-auto w-full mb-6">
+            <div class="flex justify-between text-xs font-bold text-amber-800 mb-1">
+                <span>しんちょく (できたかな？)</span>
+                <span id="kids-progress-text">0 / 0</span>
+            </div>
+            <div class="w-full bg-amber-200 rounded-full h-4 p-0.5 overflow-hidden">
+                <div id="kids-progress-bar" class="bg-gradient-to-r from-emerald-400 to-green-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Kids Mode Large Item List Grid -->
+        <div id="kids-items-grid" class="max-w-4xl mx-auto w-full grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+            <!-- Rendered in JS -->
+        </div>
+    </div>
+
+    <!-- PRINT VIEW TEMPLATES (A4 Printable Visual Schedule & Flashcard Sheet) -->
+    <div id="print-view-area" class="print-only print-container p-6 bg-white text-slate-900">
+        <!-- Generated on the fly by print JS routines -->
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-2xl shadow-xl transition-all duration-300 opacity-0 pointer-events-none translate-y-2 z-50 flex items-center gap-2 no-print">
+        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-message">保存しました</span>
+    </div>
+
+    <!-- Application JavaScript Code -->
+    <script>
+        /* ==========================================================================
+           1. DATA STORE (100+ Picture Cards & Categories)
+           ========================================================================== */
+        const PRESET_CARDS = [
+            // --- 学校 (School) ---
+            { id: 'sch_1', hira: 'とうこう', kanji: '登校', icon: '🎒', bg: '#FFEBEE', cat: 'school' },
+            { id: 'sch_2', hira: 'あさのかい', kanji: '朝の会', icon: '🌅', bg: '#FFF8E1', cat: 'school' },
+            { id: 'sch_3', hira: 'こくご', kanji: '国語', icon: '📖', bg: '#E3F2FD', cat: 'school' },
+            { id: 'sch_4', hira: 'さんすう', kanji: '算数', icon: '🔢', bg: '#E8F5E9', cat: 'school' },
+            { id: 'sch_5', hira: 'せいかつ', kanji: '生活', icon: '🌱', bg: '#F1F8E9', cat: 'school' },
+            { id: 'sch_6', hira: 'おんがく', kanji: '音楽', icon: '🎵', bg: '#F3E5F5', cat: 'school' },
+            { id: 'sch_7', hira: 'ずこう', kanji: '図工', icon: '🎨', bg: '#FCE4EC', cat: 'school' },
+            { id: 'sch_8', hira: 'たいいく', kanji: '体育', icon: '🏃', bg: '#E0F2FE', cat: 'school' },
+            { id: 'sch_9', hira: 'りか', kanji: '理科', icon: '🔬', bg: '#E0F7FA', cat: 'school' },
+            { id: 'sch_10', hira: 'しゃかい', kanji: '社会', icon: '🗺️', bg: '#FFF3E0', cat: 'school' },
+            { id: 'sch_11', hira: 'えいご', kanji: '英語', icon: '🔤', bg: '#EDE7F6', cat: 'school' },
+            { id: 'sch_12', hira: 'どうとく', kanji: '道徳', icon: '💖', bg: '#FFEBEE', cat: 'school' },
+            { id: 'sch_13', hira: 'じりつかつどう', kanji: '自立活動', icon: '🧩', bg: '#E8EAF6', cat: 'school' },
+            { id: 'sch_14', hira: 'がっかん', kanji: '学級活動', icon: '💬', bg: '#F1F8E9', cat: 'school' },
+            { id: 'sch_15', hira: 'やすみじかん', kanji: '休み時間', icon: '⚽', bg: '#FFFDE7', cat: 'school' },
+            { id: 'sch_16', hira: 'きゅうしょく', kanji: '給食', icon: '🍱', bg: '#FFF8E1', cat: 'school' },
+            { id: 'sch_17', hira: 'そうじ', kanji: '掃除', icon: '🧹', bg: '#EFEBE9', cat: 'school' },
+            { id: 'sch_18', hira: 'かえりのかい', kanji: '帰りの会', icon: '🌇', bg: '#FFF3E0', cat: 'school' },
+            { id: 'sch_19', hira: 'げこう', kanji: '下校', icon: '🏠', bg: '#E8F5E9', cat: 'school' },
+            { id: 'sch_20', hira: 'どくしょ', kanji: '読書', icon: '📚', bg: '#E3F2FD', cat: 'school' },
+            { id: 'sch_21', hira: 'クラブ・いいんかい', kanji: 'クラブ・委員会', icon: '🤝', bg: '#F3E5F5', cat: 'school' },
+            { id: 'sch_22', hira: 'ひなんくんれん', kanji: '避難訓練', icon: '🚨', bg: '#FFEBEE', cat: 'school' },
+            { id: 'sch_23', hira: 'しんたいていそく', kanji: '身体計測', icon: '📏', bg: '#E0F2FE', cat: 'school' },
+            { id: 'sch_24', hira: 'えんそく', kanji: '遠足', icon: '🎒', bg: '#FFF8E1', cat: 'school' },
+            { id: 'sch_25', hira: 'じしゅう', kanji: '自習', icon: '✍️', bg: '#F5F5F5', cat: 'school' },
+
+            // --- 家庭・生活 (Home & Life Routine) ---
+            { id: 'hm_1', hira: 'おきる', kanji: '起きる', icon: '⏰', bg: '#FFF8E1', cat: 'home' },
+            { id: 'hm_2', hira: 'あさごはん', kanji: '朝ごはん', icon: '🍞', bg: '#FFF3E0', cat: 'home' },
+            { id: 'hm_3', hira: 'きがえ', kanji: '着替え', icon: '👕', bg: '#E3F2FD', cat: 'home' },
+            { id: 'hm_4', hira: 'しゅくだい', kanji: '宿題', icon: '📝', bg: '#E8F5E9', cat: 'home' },
+            { id: 'hm_5', hira: 'じゅんび', kanji: '明日の準備', icon: '🎒', bg: '#F3E5F5', cat: 'home' },
+            { id: 'hm_6', hira: 'ひるごはん', kanji: '昼ごはん', icon: '🍜', bg: '#FFF8E1', cat: 'home' },
+            { id: 'hm_7', hira: 'おやつ', kanji: 'おやつ', icon: '🍩', bg: '#FCE4EC', cat: 'home' },
+            { id: 'hm_8', hira: 'ばんごはん', kanji: '晩ごはん', icon: '🍛', bg: '#FFF3E0', cat: 'home' },
+            { id: 'hm_9', hira: 'おふろ', kanji: 'お風呂', icon: '🛁', bg: '#E0F7FA', cat: 'home' },
+            { id: 'hm_10', hira: 'ねる', kanji: '寝る', icon: '🛌', bg: '#EDE7F6', cat: 'home' },
+            { id: 'hm_11', hira: 'おてつだい', kanji: 'お手伝い', icon: '🧼', bg: '#E8F5E9', cat: 'home' },
+            { id: 'hm_12', hira: 'かたづけ', kanji: '片付け', icon: '📦', bg: '#EFEBE9', cat: 'home' },
+            { id: 'hm_13', hira: 'くつをそろえる', kanji: '靴を揃える', icon: '👟', bg: '#F5F5F5', cat: 'home' },
+            { id: 'hm_14', hira: 'おべんきょう', kanji: '自主学習', icon: '✏️', bg: '#E3F2FD', cat: 'home' },
+            { id: 'hm_15', hira: 'ほうかごデイ', kanji: '放課後デイ', icon: '🚐', bg: '#FFF8E1', cat: 'home' },
+
+            // --- 衛生・ケア (Hygiene & Care) ---
+            { id: 'hy_1', hira: 'はみがき', kanji: '歯みがき', icon: '🪥', bg: '#E0F2FE', cat: 'hygiene' },
+            { id: 'hy_2', hira: 'てあらい・うがい', kanji: '手洗い・うがい', icon: '🧼', bg: '#E0F7FA', cat: 'hygiene' },
+            { id: 'hy_3', hira: 'かおをあらう', kanji: '顔を洗う', icon: '🚰', bg: '#E3F2FD', cat: 'hygiene' },
+            { id: 'hy_4', hira: 'トイレ', kanji: 'トイレ', icon: '🚻', bg: '#E8EAF6', cat: 'hygiene' },
+            { id: 'hy_5', hira: 'あたまをあらう', kanji: '頭を洗う', icon: '🧴', bg: '#E0F7FA', cat: 'hygiene' },
+            { id: 'hy_6', hira: 'つめきり', kanji: '爪切り', icon: '✂️', bg: '#F5F5F5', cat: 'hygiene' },
+            { id: 'hy_7', hira: 'マスクをつける', kanji: 'マスク着用', icon: '😷', bg: '#E0F2FE', cat: 'hygiene' },
+            { id: 'hy_8', hira: 'ハンカチをもつ', kanji: 'ハンカチ携帯', icon: '🧺', bg: '#FCE4EC', cat: 'hygiene' },
+            { id: 'hy_9', hira: 'くすりをのむ', kanji: '薬を飲む', icon: '💊', bg: '#FFEBEE', cat: 'hygiene' },
+            { id: 'hy_10', hira: 'たいおんをはかる', kanji: '体温計測', icon: '🌡️', bg: '#FFF8E1', cat: 'hygiene' },
+
+            // --- 遊び・行動 (Play & Activities) ---
+            { id: 'pl_1', hira: 'じゆうじかん', kanji: '自由時間', icon: '🧩', bg: '#FFF8E1', cat: 'play' },
+            { id: 'pl_2', hira: 'ゲーム', kanji: 'ゲーム', icon: '🎮', bg: '#EDE7F6', cat: 'play' },
+            { id: 'pl_3', hira: 'テレビ・YouTube', kanji: 'テレビ鑑賞', icon: '📺', bg: '#FFEBEE', cat: 'play' },
+            { id: 'pl_4', hira: 'こうえん', kanji: '公園で遊ぶ', icon: '🛝', bg: '#E8F5E9', cat: 'play' },
+            { id: 'pl_5', hira: 'おさんぽ', kanji: 'お散歩', icon: '🐕', bg: '#FFF3E0', cat: 'play' },
+            { id: 'pl_6', hira: 'ならいごと', kanji: '習い事', icon: '🎹', bg: '#F3E5F5', cat: 'play' },
+            { id: 'pl_7', hira: 'ぶかつ', kanji: '部活動', icon: '🏀', bg: '#E0F2FE', cat: 'play' },
+            { id: 'pl_8', hira: 'おりがみ', kanji: '折り紙', icon: '📄', bg: '#FCE4EC', cat: 'play' },
+            { id: 'pl_9', hira: 'おえかき', kanji: 'お絵かき', icon: '🖍️', bg: '#FFF8E1', cat: 'play' },
+            { id: 'pl_10', hira: 'ブロック', kanji: 'ブロック遊び', icon: '🧱', bg: '#E0F2FE', cat: 'play' },
+
+            // --- 特別・その他 (Special & Outings) ---
+            { id: 'sp_1', hira: 'びょういん', kanji: '病院・クリニック', icon: '🏥', bg: '#FFEBEE', cat: 'special' },
+            { id: 'sp_2', hira: 'かいもの', kanji: '買い物', icon: '🛒', bg: '#FFF8E1', cat: 'special' },
+            { id: 'sp_3', hira: 'さんばつ', kanji: '散髪・美容室', icon: '💈', bg: '#E0F2FE', cat: 'special' },
+            { id: 'sp_4', hira: 'たんじょうび', kanji: '誕生日会', icon: '🎂', bg: '#FCE4EC', cat: 'special' },
+            { id: 'sp_5', hira: 'おでかけ', kanji: 'お出かけ', icon: '🚗', bg: '#E8F5E9', cat: 'special' },
+            { id: 'sp_6', hira: 'おやすみ', kanji: 'お休みの日', icon: '⭐', bg: '#FFF8E1', cat: 'special' },
+            { id: 'sp_7', hira: 'じどうかん', kanji: '児童館', icon: '🏰', bg: '#F3E5F5', cat: 'special' },
+            { id: 'sp_8', hira: 'でんしゃ・バス', kanji: '電車・バス移動', icon: '🚃', bg: '#E0F7FA', cat: 'special' },
+        ];
+
+        /* ==========================================================================
+           2. APP STATE MANAGEMENT
+           ========================================================================== */
+        let scriptMode = 'hira'; // 'hira' or 'kanji'
+        let currentCategory = 'all';
+        let scheduleItems = []; // Array of { id, cardId, hira, kanji, icon, bg, time, note, done }
+        let customCards = [];
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            // Set current Japanese Date String
+            const today = new Date();
+            const days = ['日', '月', '火', '水', '木', '金', '土'];
+            document.getElementById('today-date-text').textContent = 
+                `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日 (${days[today.getDay()]})`;
+
+            // Load saved custom cards if any
+            const savedCustom = localStorage.getItem('mto_custom_cards');
+            if (savedCustom) {
+                try { customCards = JSON.parse(savedCustom); } catch(e){}
+            }
+
+            renderCardCatalog();
+            loadDefaultPreset();
+            lucide.createIcons();
+        });
+
+        /* ==========================================================================
+           3. CARD CATALOG & SEARCH LOGIC
+           ========================================================================== */
+        function setScriptMode(mode) {
+            scriptMode = mode;
+            document.getElementById('btn-script-hira').className = mode === 'hira' ? 
+                'px-3 py-1 text-xs font-bold rounded-lg transition-all bg-sky-500 text-white shadow-sm' : 
+                'px-3 py-1 text-xs font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900';
+            document.getElementById('btn-script-kanji').className = mode === 'kanji' ? 
+                'px-3 py-1 text-xs font-bold rounded-lg transition-all bg-sky-500 text-white shadow-sm' : 
+                'px-3 py-1 text-xs font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900';
+
+            renderCardCatalog();
+            renderScheduleList();
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-tab').forEach(btn => {
+                if (btn.dataset.cat === cat) {
+                    btn.className = 'cat-tab bg-sky-500 text-white px-3 py-1.5 rounded-lg whitespace-nowrap shadow-sm';
+                } else {
+                    btn.className = 'cat-tab bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg whitespace-nowrap';
+                }
+            });
+            renderCardCatalog();
+        }
+
+        function filterCards() {
+            renderCardCatalog();
+        }
+
+        function renderCardCatalog() {
+            const grid = document.getElementById('cards-grid');
+            const query = document.getElementById('card-search').value.toLowerCase().trim();
+            grid.innerHTML = '';
+
+            const allAvailable = [...customCards, ...PRESET_CARDS];
+
+            const filtered = allAvailable.filter(card => {
+                const matchCat = currentCategory === 'all' || card.cat === currentCategory || card.isCustom;
+                const matchSearch = !query || 
+                    card.hira.toLowerCase().includes(query) || 
+                    card.kanji.toLowerCase().includes(query);
+                return matchCat && matchSearch;
+            });
+
+            filtered.forEach(card => {
+                const label = scriptMode === 'hira' ? card.hira : card.kanji;
+                const cardEl = document.createElement('button');
+                cardEl.className = 'card-btn p-2.5 rounded-2xl border-2 border-slate-200 flex flex-col items-center justify-center text-center gap-1 hover:border-sky-400 hover:shadow-md cursor-pointer relative group';
+                cardEl.style.backgroundColor = card.bg || '#FFFFFF';
+                cardEl.onclick = () => addCardToSchedule(card);
+
+                cardEl.innerHTML = `
+                    <span class="text-2xl sm:text-3xl select-none leading-none">${card.icon}</span>
+                    <span class="text-xs font-black text-slate-800 line-clamp-1 w-full">${label}</span>
+                `;
+                grid.appendChild(cardEl);
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-8 text-center text-slate-400 text-xs font-bold">
+                        一致する絵カードが見つかりません
+                    </div>
+                `;
+            }
+        }
+
+        /* ==========================================================================
+           4. SCHEDULE BUILDER & TIMELINE LOGIC
+           ========================================================================== */
+        function addCardToSchedule(card, defaultTime = '') {
+            const newItem = {
+                id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                cardId: card.id,
+                hira: card.hira,
+                kanji: card.kanji,
+                icon: card.icon,
+                bg: card.bg || '#FFFFFF',
+                time: defaultTime || calculateNextTime(),
+                note: '',
+                done: false
+            };
+            scheduleItems.push(newItem);
+            renderScheduleList();
+            playSound('add');
+            showToast(`「${scriptMode === 'hira' ? card.hira : card.kanji}」を追加しました`);
+        }
+
+        function calculateNextTime() {
+            if (scheduleItems.length === 0) return '08:30';
+            const lastTime = scheduleItems[scheduleItems.length - 1].time;
+            if (!lastTime) return '09:00';
+
+            const [h, m] = lastTime.split(':').map(Number);
+            let nextM = m + 45; // Default 45 min interval for school classes
+            let nextH = h;
+            if (nextM >= 60) {
+                nextH += Math.floor(nextM / 60);
+                nextM = nextM % 60;
+            }
+            if (nextH >= 24) nextH = 8;
+            return `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+        }
+
+        function addBlankScheduleItem() {
+            addCardToSchedule({
+                id: 'custom_blank',
+                hira: 'じゆう',
+                kanji: '自由',
+                icon: '⭐',
+                bg: '#FFF8E1'
+            });
+        }
+
+        function removeScheduleItem(index) {
+            scheduleItems.splice(index, 1);
+            renderScheduleList();
+        }
+
+        function moveScheduleItem(index, direction) {
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= scheduleItems.length) return;
+            const temp = scheduleItems[index];
+            scheduleItems[index] = scheduleItems[targetIndex];
+            scheduleItems[targetIndex] = temp;
+            renderScheduleList();
+        }
+
+        function updateScheduleItemData(index, field, value) {
+            scheduleItems[index][field] = value;
+            if (field === 'time') {
+                renderClockCanvas(`clock-canvas-${index}`, value);
+            }
+        }
+
+        function toggleItemDone(index) {
+            scheduleItems[index].done = !scheduleItems[index].done;
+            renderScheduleList();
+
+            if (scheduleItems[index].done) {
+                playSound('check');
+                // Check if all items done!
+                if (scheduleItems.every(item => item.done)) {
+                    triggerConfetti();
+                }
+            }
+        }
+
+        function renderScheduleList() {
+            const container = document.getElementById('schedule-items-list');
+            const countBadge = document.getElementById('schedule-count-text');
+            countBadge.textContent = `${scheduleItems.length}件の予定`;
+
+            if (scheduleItems.length === 0) {
+                container.innerHTML = `
+                    <div class="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-3xl p-6 text-center text-slate-400">
+                        <div class="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-400 mb-3">
+                            <i data-lucide="arrow-left" class="w-8 h-8"></i>
+                        </div>
+                        <p class="font-black text-sm text-slate-600 mb-1">左のカード一覧からタップして追加</p>
+                        <p class="text-xs">一日のスケジュール・見通し表を作成できます</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = '';
+
+            scheduleItems.forEach((item, index) => {
+                const label = scriptMode === 'hira' ? item.hira : item.kanji;
+                const itemEl = document.createElement('div');
+                itemEl.className = `p-3 rounded-2xl border-2 transition-all flex flex-wrap sm:flex-nowrap items-center gap-3 ${
+                    item.done ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200 shadow-sm hover:border-amber-300'
+                }`;
+
+                itemEl.innerHTML = `
+                    <!-- Reorder & Check -->
+                    <div class="flex items-center gap-1 text-slate-300">
+                        <div class="flex flex-col">
+                            <button onclick="moveScheduleItem(${index}, -1)" class="hover:text-slate-600 p-0.5 ${index === 0 ? 'invisible' : ''}">
+                                <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="moveScheduleItem(${index}, 1)" class="hover:text-slate-600 p-0.5 ${index === scheduleItems.length - 1 ? 'invisible' : ''}">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visual Icon & Card -->
+                    <div class="w-12 h-12 rounded-xl border-2 border-slate-200/80 flex items-center justify-center text-2xl shrink-0 shadow-inner" style="background-color: ${item.bg}">
+                        ${item.icon}
+                    </div>
+
+                    <!-- Label & Note Inputs -->
+                    <div class="flex-1 min-w-[140px]">
+                        <input type="text" value="${label}" onchange="updateScheduleItemData(${index}, '${scriptMode === 'hira' ? 'hira' : 'kanji'}', this.value)" 
+                            class="font-black text-sm sm:text-base text-slate-800 bg-transparent focus:bg-slate-50 border border-transparent focus:border-amber-300 rounded px-1 w-full focus:outline-none ${item.done ? 'line-through text-slate-400' : ''}">
+                        <input type="text" placeholder="+ メモ・もちもの" value="${item.note || ''}" onchange="updateScheduleItemData(${index}, 'note', this.value)"
+                            class="text-xs font-bold text-slate-500 bg-transparent focus:bg-slate-50 border border-transparent focus:border-amber-300 rounded px-1 w-full focus:outline-none">
+                    </div>
+
+                    <!-- Analog Clock Canvas & Digital Time Input -->
+                    <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
+                        <canvas id="clock-canvas-${index}" width="36" height="36" class="w-9 h-9"></canvas>
+                        <input type="time" value="${item.time || ''}" onchange="updateScheduleItemData(${index}, 'time', this.value)"
+                            class="bg-transparent font-black text-xs sm:text-sm text-slate-700 focus:outline-none cursor-pointer">
+                    </div>
+
+                    <!-- Interactive Done Checkbox -->
+                    <button onclick="toggleItemDone(${index})" class="p-2 rounded-xl border-2 transition-all shrink-0 ${
+                        item.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-300 text-slate-300 hover:border-emerald-400'
+                    }">
+                        <i data-lucide="check" class="w-5 h-5 stroke-[3]"></i>
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button onclick="removeScheduleItem(${index})" class="text-slate-300 hover:text-red-500 p-1 rounded-lg transition-all shrink-0">
+                        <i data-lucide="trash" class="w-4 h-4"></i>
+                    </button>
+                `;
+
+                container.appendChild(itemEl);
+
+                // Render Canvas Clock for this item
+                setTimeout(() => {
+                    renderClockCanvas(`clock-canvas-${index}`, item.time);
+                }, 0);
+            });
+
+            lucide.createIcons();
+        }
+
+        /* ==========================================================================
+           5. ANALOG CLOCK CANVAS RENDERER
+           ========================================================================== */
+        function renderClockCanvas(canvasId, timeStr) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const radius = canvas.width / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Clock face
+            ctx.beginPath();
+            ctx.arc(radius, radius, radius - 2, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#64748B';
+            ctx.stroke();
+
+            // Center dot
+            ctx.beginPath();
+            ctx.arc(radius, radius, 2, 0, 2 * Math.PI);
+            ctx.fillStyle = '#1E293B';
+            ctx.fill();
+
+            if (!timeStr) return;
+
+            const [hours, minutes] = timeStr.split(':').map(Number);
+
+            // Hour Hand
+            const hourAngle = ((hours % 12) + minutes / 60) * (Math.PI / 6) - Math.PI / 2;
+            const hourLength = radius * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(radius, radius);
+            ctx.lineTo(radius + hourLength * Math.cos(hourAngle), radius + hourLength * Math.sin(hourAngle));
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#1E293B';
+            ctx.stroke();
+
+            // Minute Hand
+            const minuteAngle = minutes * (Math.PI / 30) - Math.PI / 2;
+            const minuteLength = radius * 0.75;
+            ctx.beginPath();
+            ctx.moveTo(radius, radius);
+            ctx.lineTo(radius + minuteLength * Math.cos(minuteAngle), radius + minuteLength * Math.sin(minuteAngle));
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#EF4444';
+            ctx.stroke();
+        }
+
+        /* ==========================================================================
+           6. PRESET SCHEDULE TEMPLATES
+           ========================================================================== */
+        function loadDefaultPreset() {
+            loadPresetSchedule('school-day');
+        }
+
+        function loadPresetSchedule(presetKey) {
+            if (!presetKey) return;
+            scheduleItems = [];
+
+            if (presetKey === 'school-day') {
+                document.getElementById('schedule-title-input').value = scriptMode === 'hira' ? 'きょうの よてい' : '今日の予定';
+                const presets = [
+                    { hira: 'とうこう', kanji: '登校', icon: '🎒', bg: '#FFEBEE', time: '08:00' },
+                    { hira: 'あさのかい', kanji: '朝の会', icon: '🌅', bg: '#FFF8E1', time: '08:20' },
+                    { hira: 'こくご', kanji: '国語', icon: '📖', bg: '#E3F2FD', time: '08:45' },
+                    { hira: 'さんすう', kanji: '算数', icon: '🔢', bg: '#E8F5E9', time: '09:40' },
+                    { hira: 'やすみじかん', kanji: '休み時間', icon: '⚽', bg: '#FFFDE7', time: '10:25' },
+                    { hira: 'たいいく', kanji: '体育', icon: '🏃', bg: '#E0F2FE', time: '10:45' },
+                    { hira: 'きゅうしょく', kanji: '給食', icon: '🍱', bg: '#FFF8E1', time: '12:15' },
+                    { hira: 'そうじ', kanji: '掃除', icon: '🧹', bg: '#EFEBE9', time: '13:15' },
+                    { hira: 'かえりのかい', kanji: '帰りの会', icon: '🌇', bg: '#FFF3E0', time: '14:30' },
+                ];
+                presets.forEach(p => addCardToSchedule(p, p.time));
+            } else if (presetKey === 'home-morning') {
+                document.getElementById('schedule-title-input').value = scriptMode === 'hira' ? 'あさの ルティーン' : '朝のルーティン';
+                const presets = [
+                    { hira: 'おきる', kanji: '起きる', icon: '⏰', bg: '#FFF8E1', time: '07:00' },
+                    { hira: 'トイレ', kanji: 'トイレ', icon: '🚻', bg: '#E8EAF6', time: '07:05' },
+                    { hira: 'かおをあらう', kanji: '顔を洗う', icon: '🚰', bg: '#E3F2FD', time: '07:10' },
+                    { hira: 'きがえ', kanji: '着替え', icon: '👕', bg: '#E3F2FD', time: '07:15' },
+                    { hira: 'あさごはん', kanji: '朝ごはん', icon: '🍞', bg: '#FFF3E0', time: '07:25' },
+                    { hira: 'はみがき', kanji: '歯みがき', icon: '🪥', bg: '#E0F2FE', time: '07:45' },
+                    { hira: 'じゅんび', kanji: '持ち物チェック', icon: '🎒', bg: '#F3E5F5', time: '07:55' },
+                    { hira: 'しゅっぱつ', kanji: '出発', icon: '🚶', bg: '#E8F5E9', time: '08:05' },
+                ];
+                presets.forEach(p => addCardToSchedule(p, p.time));
+            } else if (presetKey === 'home-evening') {
+                document.getElementById('schedule-title-input').value = scriptMode === 'hira' ? 'ゆうがた・よるの よてい' : '夕方・夜の予定';
+                const presets = [
+                    { hira: 'ただいま', kanji: '帰宅・手洗い', icon: '🧼', bg: '#E0F7FA', time: '15:30' },
+                    { hira: 'おやつ', kanji: 'おやつ', icon: '🍩', bg: '#FCE4EC', time: '15:45' },
+                    { hira: 'しゅくだい', kanji: '宿題・学習', icon: '📝', bg: '#E8F5E9', time: '16:15' },
+                    { hira: 'じゆうじかん', kanji: '自由時間・ゲーム', icon: '🎮', bg: '#EDE7F6', time: '17:00' },
+                    { hira: 'おふろ', kanji: 'お風呂', icon: '🛁', bg: '#E0F7FA', time: '18:00' },
+                    { hira: 'ばんごはん', kanji: '晩ごはん', icon: '🍛', bg: '#FFF3E0', time: '18:45' },
+                    { hira: 'はみがき', kanji: '歯みがき', icon: '🪥', bg: '#E0F2FE', time: '19:30' },
+                    { hira: 'ねる', kanji: '就寝', icon: '🛌', bg: '#EDE7F6', time: '20:30' },
+                ];
+                presets.forEach(p => addCardToSchedule(p, p.time));
+            } else if (presetKey === 'after-school') {
+                document.getElementById('schedule-title-input').value = scriptMode === 'hira' ? 'ほうかごデイ・きゅうじつ' : '放課後デイ・休日';
+                const presets = [
+                    { hira: 'とうしょ', kanji: '到着・健康チェック', icon: '🚐', bg: '#FFF8E1', time: '14:00' },
+                    { hira: 'はじまりのかい', kanji: '始まりの会', icon: '💬', bg: '#F1F8E9', time: '14:15' },
+                    { hira: 'しゅくだい', kanji: '宿題・個別の学習', icon: '📝', bg: '#E8F5E9', time: '14:30' },
+                    { hira: 'おやつ', kanji: 'おやつ時間', icon: '🍩', bg: '#FCE4EC', time: '15:15' },
+                    { hira: 'じりつかつどう', kanji: '集団プログラム・運動', icon: '🧩', bg: '#E8EAF6', time: '15:45' },
+                    { hira: 'かたづけ', kanji: '片付け・準備', icon: '📦', bg: '#EFEBE9', time: '16:45' },
+                ];
+                presets.forEach(p => addCardToSchedule(p, p.time));
+            }
+
+            document.getElementById('preset-loader').value = '';
+        }
+
+        function clearSchedule() {
+            scheduleItems = [];
+            renderScheduleList();
+            showToast('予定をクリアしました');
+        }
+
+        /* ==========================================================================
+           7. CUSTOM CARD CREATOR MODAL
+           ========================================================================== */
+        function openCustomCardModal() {
+            document.getElementById('custom-card-modal').classList.remove('hidden');
+        }
+
+        function closeCustomCardModal() {
+            document.getElementById('custom-card-modal').classList.add('hidden');
+        }
+
+        function setCustomEmoji(emoji) {
+            document.getElementById('custom-card-emoji').value = emoji;
+        }
+
+        function saveCustomCard() {
+            const hira = document.getElementById('custom-card-hira').value.trim();
+            const kanji = document.getElementById('custom-card-kanji').value.trim() || hira;
+            const emoji = document.getElementById('custom-card-emoji').value.trim() || '⭐';
+            const color = document.getElementById('custom-card-color').value;
+
+            if (!hira) {
+                showToast('カードの名前（ひらがな）を入力してください');
+                return;
+            }
+
+            const newCard = {
+                id: 'custom_' + Date.now(),
+                hira: hira,
+                kanji: kanji,
+                icon: emoji,
+                bg: color,
+                isCustom: true
+            };
+
+            customCards.unshift(newCard);
+            localStorage.setItem('mto_custom_cards', JSON.stringify(customCards));
+
+            renderCardCatalog();
+            addCardToSchedule(newCard);
+            closeCustomCardModal();
+
+            // Reset inputs
+            document.getElementById('custom-card-hira').value = '';
+            document.getElementById('custom-card-kanji').value = '';
+            showToast('オリジナルカードを作成・追加しました！');
+        }
+
+        /* ==========================================================================
+           8. KIDS INTERACTIVE CHECK MODE
+           ========================================================================== */
+        function toggleKidsMode() {
+            const overlay = document.getElementById('kids-mode-overlay');
+            const isHidden = overlay.classList.contains('hidden');
+
+            if (isHidden) {
+                overlay.classList.remove('hidden');
+                document.getElementById('kids-mode-title').textContent = document.getElementById('schedule-title-input').value;
+                renderKidsModeGrid();
+            } else {
+                overlay.classList.add('hidden');
+                renderScheduleList(); // Sync back
+            }
+        }
+
+        function renderKidsModeGrid() {
+            const grid = document.getElementById('kids-items-grid');
+            grid.innerHTML = '';
+
+            let doneCount = 0;
+
+            scheduleItems.forEach((item, index) => {
+                if (item.done) doneCount++;
+                const label = scriptMode === 'hira' ? item.hira : item.kanji;
+
+                const cardEl = document.createElement('div');
+                cardEl.className = `p-4 sm:p-6 rounded-3xl border-4 transition-all flex items-center justify-between gap-4 cursor-pointer select-none ${
+                    item.done 
+                        ? 'bg-slate-100 border-slate-300 opacity-60 scale-98' 
+                        : 'bg-white border-amber-300 shadow-lg hover:border-amber-500 hover:scale-[1.02]'
+                }`;
+                cardEl.onclick = () => {
+                    toggleItemDone(index);
+                    renderKidsModeGrid();
+                };
+
+                cardEl.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-slate-200 flex items-center justify-center text-3xl sm:text-4xl shrink-0 shadow-inner" style="background-color: ${item.bg}">
+                            ${item.icon}
+                        </div>
+                        <div>
+                            <div class="text-xs font-black text-amber-700 mb-0.5 flex items-center gap-1">
+                                <i data-lucide="clock" class="w-3.5 h-3.5"></i> ${item.time || '--:--'}
+                            </div>
+                            <h3 class="text-xl sm:text-2xl font-black text-slate-800 ${item.done ? 'line-through text-slate-400' : ''}">${label}</h3>
+                            ${item.note ? `<p class="text-xs font-bold text-slate-500 mt-1">📌 ${item.note}</p>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border-4 flex items-center justify-center transition-all ${
+                        item.done 
+                            ? 'bg-emerald-500 border-emerald-500 text-white' 
+                            : 'bg-amber-100 border-amber-300 text-amber-400'
+                    }">
+                        <i data-lucide="check" class="w-8 h-8 stroke-[3]"></i>
+                    </div>
+                `;
+
+                grid.appendChild(cardEl);
+            });
+
+            // Update Progress Bar
+            const total = scheduleItems.length;
+            const percentage = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+            document.getElementById('kids-progress-text').textContent = `${doneCount} / ${total} できた！`;
+            document.getElementById('kids-progress-bar').style.width = `${percentage}%`;
+
+            lucide.createIcons();
+        }
+
+        /* ==========================================================================
+           9. PRINT ROUTINES (Schedule Page & Cards Grid Page)
+           ========================================================================== */
+        function printSchedule() {
+            const printArea = document.getElementById('print-view-area');
+            const title = document.getElementById('schedule-title-input').value;
+            const dateStr = document.getElementById('today-date-text').textContent;
+
+            let html = `
+                <div class="border-b-4 border-slate-800 pb-4 mb-6 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-3xl font-black text-slate-900">${title}</h1>
+                        <p class="text-sm font-bold text-slate-600 mt-1">${dateStr}</p>
+                    </div>
+                    <div class="text-xs font-bold text-slate-400">見通しメーカー</div>
+                </div>
+
+                <div class="space-y-4">
+            `;
+
+            scheduleItems.forEach((item, index) => {
+                const label = scriptMode === 'hira' ? item.hira : item.kanji;
+                html += `
+                    <div class="p-3 border-2 border-slate-800 rounded-2xl flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 border border-slate-800 rounded-lg flex items-center justify-center text-xl shrink-0" style="background-color: ${item.bg}">
+                                ${item.icon}
+                            </div>
+                            <div>
+                                <div class="text-lg font-black text-slate-900">${label}</div>
+                                ${item.note ? `<div class="text-xs text-slate-600">メモ: ${item.note}</div>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-2 border border-slate-400 px-3 py-1 rounded-lg">
+                                <canvas id="print-clock-${index}" width="32" height="32" class="w-8 h-8"></canvas>
+                                <span class="text-base font-black">${item.time || '--:--'}</span>
+                            </div>
+                            <div class="w-8 h-8 border-2 border-slate-800 rounded-lg flex items-center justify-center">
+                                ${item.done ? '✓' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            printArea.innerHTML = html;
+
+            // Render Clocks in print DOM
+            scheduleItems.forEach((item, index) => {
+                setTimeout(() => {
+                    renderClockCanvas(`print-clock-${index}`, item.time);
+                }, 0);
+            });
+
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+
+        function printCardsGrid() {
+            const printArea = document.getElementById('print-view-area');
+            const allAvailable = [...customCards, ...PRESET_CARDS];
+
+            let html = `
+                <div class="border-b-2 border-slate-800 pb-2 mb-4 flex justify-between items-center">
+                    <h1 class="text-2xl font-black text-slate-900">絵カード一覧 (印刷切り取り用)</h1>
+                    <span class="text-xs text-slate-500">枠線に沿ってハサミで切り取ってご活用ください</span>
+                </div>
+
+                <div class="grid grid-cols-4 gap-3">
+            `;
+
+            allAvailable.forEach(card => {
+                const label = scriptMode === 'hira' ? card.hira : card.kanji;
+                html += `
+                    <div class="border-2 border-dashed border-slate-400 rounded-xl p-3 flex flex-col items-center justify-center text-center gap-2 h-32" style="background-color: ${card.bg || '#FFFFFF'}">
+                        <span class="text-4xl">${card.icon}</span>
+                        <span class="text-sm font-black text-slate-900">${label}</span>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            printArea.innerHTML = html;
+
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+
+        /* ==========================================================================
+           10. AUDIO EFFECTS & LOCAL STORAGE
+           ========================================================================== */
+        function playSound(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'add') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.1);
+                } else if (type === 'check') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08); // E5
+                    osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.16); // G5
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 80,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        function saveScheduleToLocal() {
+            const title = document.getElementById('schedule-title-input').value;
+            const data = { title, items: scheduleItems };
+            localStorage.setItem('mto_current_schedule', JSON.stringify(data));
+            showToast('予定をブラウザに保存しました');
+        }
+
+        function loadScheduleFromLocal() {
+            const raw = localStorage.getItem('mto_current_schedule');
+            if (!raw) {
+                showToast('保存されたデータがありません');
+                return;
+            }
+            try {
+                const data = JSON.parse(raw);
+                if (data.title) document.getElementById('schedule-title-input').value = data.title;
+                if (data.items) scheduleItems = data.items;
+                renderScheduleList();
+                showToast('保存した予定を復元しました');
+            } catch(e) {
+                showToast('データの読み込みに失敗しました');
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
